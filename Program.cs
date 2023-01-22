@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using AudioStreamer_TestClient;
+using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
@@ -18,22 +19,23 @@ internal class Program
             Console.WriteLine("Тест 1. Пинг-понг");
             DateTime dt = DateTime.Now;
             Send(socket, "ping");
+            Read(socket);
             Console.WriteLine($"Исполнение запроса заняло >> {DateTime.Now - dt}");
 
 
             // Тест 2. Получить данные по ID и собрать их в один файл.
             Console.WriteLine("Тест2. Получить данные по ID и собрать их в один файл.");
-            Send(socket, "get_song_by_id 0 hq");
+            Send(socket, "get_song_by_id 0 mid");
 
-            using (FileStream f = File.Open("recived_file.wav", FileMode.OpenOrCreate))
-            {
+            using (FileStream f = File.Open("recived_file.wav", FileMode.OpenOrCreate)) {
+                List<byte> byteMainBuffer = new();
+                short packetCounter = 0;
                 while (true)
                 {
                     (byte[] inputBytes, int bufferLength) = ReadRaw(socket);
+                    packetCounter++;
                     string friendlyMessage = Encoding.Unicode.GetString(inputBytes, 0, bufferLength);
-                    Console.Write("Message ");
-                    Console.WriteLine(friendlyMessage);
-                    if (friendlyMessage == "transmission_end")
+                    if (friendlyMessage.Split(" ")[0] == "transmission_end")
                     {
                         break;
                     }
@@ -43,10 +45,12 @@ internal class Program
                         {
                             f.WriteByte(bufferElement);
                         }
-                    }
+                    }            
                 }
             }
+            socket.Close(); // TODO авторазрыв соединения через небольшой период ожидания
         }
+        LocalFileBuilder.Run("path");
     }
 
     private static string Read(Socket socket)
@@ -59,11 +63,11 @@ internal class Program
         return message.ToString();
     }
 
-    private static (byte[],int) ReadRaw(Socket socket)
+    private static (byte[], int) ReadRaw(Socket socket)
     {
         byte[] data = new byte[256];
         int len = socket.Receive(data);
-        return (data,len);
+        return (data, len);
     }
 
     private static void Send(Socket handler, string message)
